@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study Spaces</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  --bg:#ffffff; --bg2:#f6f6f4; --text:#1b1b1b; --muted:#6a6a66; --line:#e4e4e0;
+  --accent:#1f5fbf; --accent-bg:#eaf1fb; --free:#1d7f4c; --free-bg:#e8f5ee;
+  --busy:#b4461a; --busy-bg:#fbede6; --closed:#8a8a85;
+  --r:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);background:var(--bg)}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Header */
+header{height:56px;display:flex;align-items:center;gap:20px;padding:0 16px;border-bottom:1px solid var(--line)}
+.brand{font-weight:650;font-size:16px;letter-spacing:-.01em}
+.tabs{display:flex;gap:4px}
+.tab{background:none;border:0;padding:7px 12px;border-radius:8px;color:var(--muted)}
+.tab[aria-current="true"]{background:var(--bg2);color:var(--text);font-weight:550}
+.count{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--accent);color:#fff;font-size:11px;line-height:18px;text-align:center}
+.context{margin-left:auto;color:var(--muted);font-size:13px;white-space:nowrap}
+
+/* Layout */
+.app{display:grid;grid-template-columns:420px 1fr;height:calc(100% - 56px)}
+#panel{overflow-y:auto;border-right:1px solid var(--line)}
+#mapwrap{position:relative}
+#map{position:absolute;inset:0;background:var(--bg2)}
+.mapfail{display:flex;height:100%;align-items:center;justify-content:center;color:var(--muted);padding:24px;text-align:center}
+.pad{padding:16px}
+
+/* Filters */
+.filters{padding:16px;border-bottom:1px solid var(--line);display:grid;gap:12px}
+.search{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
+.seg{display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.seg button{flex:1;background:none;border:0;padding:7px 6px;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--text);color:#fff}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:none;border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--muted)}
+.chip[aria-pressed="true"]{border-color:var(--text);color:var(--text);font-weight:550}
+.chip[aria-pressed="true"]::before{content:"✓ "}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label.f{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+select{padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.resulthead{display:flex;justify-content:space-between;align-items:center;padding:12px 16px 4px;color:var(--muted);font-size:13px}
+.resulthead select{padding:4px 6px}
+.reset{background:none;border:0;color:var(--accent);padding:0;font-size:12px;justify-self:start}
+
+/* Items */
+.list{padding:4px 8px 16px}
+.item{display:flex;align-items:flex-start;border-radius:var(--r)}
+.item:hover,.item.hl{background:var(--bg2)}
+.item-main{flex:1;text-align:left;background:none;border:0;padding:12px 8px 12px 10px;display:grid;gap:3px}
+.name{font-weight:600}
+.meta{color:var(--muted);font-size:13px}
+.st{font-size:13px;font-weight:550}
+.st.free{color:var(--free)} .st.busy{color:var(--busy)} .st.mine{color:var(--accent)} .st.closed{color:var(--closed)}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}
+.tag{font-size:12px;color:var(--muted);background:var(--bg2);border-radius:6px;padding:1px 7px}
+.item:hover .tag{background:#ecece8}
+.tag.res{color:var(--accent);background:var(--accent-bg)}
+.star{background:none;border:0;padding:12px 10px;font-size:18px;color:var(--muted);line-height:1}
+.star[aria-pressed="true"]{color:#c9930a}
+.empty{color:var(--muted);padding:24px 16px;text-align:center}
+
+/* Detail */
+.back{background:none;border:0;color:var(--accent);padding:0;margin-bottom:12px}
+h1{font-size:20px;margin:0 0 2px;letter-spacing:-.01em}
+h2{font-size:14px;margin:20px 0 8px}
+.statuscard{margin-top:14px;padding:12px 14px;border-radius:var(--r);background:var(--bg2)}
+.statuscard.free{background:var(--free-bg)} .statuscard.busy{background:var(--busy-bg)} .statuscard.mine{background:var(--accent-bg)}
+.statuscard .big{font-size:16px;font-weight:600}
+.statuscard.free .big{color:var(--free)} .statuscard.busy .big{color:var(--busy)} .statuscard.mine .big{color:var(--accent)}
+.updated{font-size:12px;color:var(--muted);margin-top:2px}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-top:14px}
+.fact{background:var(--bg);padding:9px 12px}
+.fact dt{font-size:12px;color:var(--muted)}
+.fact dd{margin:0;font-weight:550}
+.photo{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r);margin-bottom:14px;background:var(--bg2)}
+.timeline{position:relative;height:26px;border-radius:6px;background:var(--free-bg);overflow:hidden}
+.seg-b{position:absolute;top:0;bottom:0;background:#e2d6cf}
+.seg-b.mine{background:var(--accent)}
+.nowline{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--text)}
+.tlabels{position:relative;height:18px;font-size:11px;color:var(--muted)}
+.tlabels span{position:absolute;transform:translateX(-50%)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:4px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.actions{display:flex;gap:8px;margin-top:16px}
+.btn{border:1px solid var(--text);background:var(--text);color:#fff;border-radius:var(--r);padding:10px 16px;font-weight:550}
+.btn.ghost{background:none;color:var(--text);border-color:var(--line)}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+.btn.wide{flex:1}
+.note{font-size:13px;color:var(--muted);margin-top:10px}
+.policy{margin-top:14px;padding:10px 12px;border:1px dashed #c9c9c3;border-radius:var(--r);font-size:13px}
+.review{padding:10px 0;border-top:1px solid var(--line)}
+.review .who{font-size:12px;color:var(--muted)}
+.stars{color:#c9930a;letter-spacing:1px}
+
+/* Reserve form */
+.form{display:grid;gap:12px;margin-top:16px}
+.form label{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+.check{display:flex !important;align-items:center;gap:8px;color:var(--text) !important;grid-template-columns:none}
+.summary{padding:12px 14px;background:var(--bg2);border-radius:var(--r);font-size:13px}
+
+/* Confirmation */
+.done{font-size:28px;color:var(--free)}
+.email{margin-top:16px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.email .eh{background:var(--bg2);padding:10px 14px;font-size:12px;color:var(--muted);display:grid;gap:2px}
+.email .eh b{color:var(--text);font-weight:550}
+.email .eb{padding:12px 14px;font-size:13px}
+.email .eb p{margin:0 0 8px}
+.demo{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:18px}
+
+/* Bookings */
+.bk{padding:14px 8px;border-top:1px solid var(--line);display:grid;gap:4px}
+.bk:first-child{border-top:0}
+.bk .actions{margin-top:8px}
+
+/* Map pins */
+.pinwrap{background:none;border:0}
+.pin{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;background:#fff;border:2px solid var(--free);color:var(--free);font:600 11px/1 system-ui,sans-serif;padding:4px 7px;border-radius:999px;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.pin.r{border-radius:4px}
+.pin.busy{border-color:var(--busy);color:var(--busy)}
+.pin.closed{border-color:var(--closed);color:var(--closed)}
+.pin.mine{border-color:var(--accent);color:var(--accent)}
+.pin.sel{background:var(--text);border-color:var(--text);color:#fff;z-index:1000}
+.maplegend{position:absolute;left:12px;bottom:20px;z-index:500;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--muted);display:grid;gap:4px}
+.lg{display:inline-block;width:14px;height:10px;border:2px solid var(--free);margin-right:6px;vertical-align:-1px;background:#fff}
+.lg.round{border-radius:999px}
+.lg.busy{border-color:var(--busy)}
+
+/* Mobile */
+.mtoggle{display:none}
+@media (max-width:760px){
+  header{gap:10px;padding:0 12px}
+  .context{display:none}
+  .app{grid-template-columns:1fr;height:calc(100% - 56px - 52px)}
+  #panel{border-right:0}
+  .app[data-view="list"] #mapwrap{display:none}
+  .app[data-view="map"] #panel{display:none}
+  .mtoggle{display:flex;position:fixed;left:0;right:0;bottom:0;height:52px;border-top:1px solid var(--line);background:var(--bg)}
+  .mtoggle button{flex:1;background:none;border:0;color:var(--muted)}
+  .mtoggle button[aria-pressed="true"]{color:var(--text);font-weight:600}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Study Spaces</div>
+  <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+  <div class="context" id="context"></div>
+</header>
+<main class="app" id="app" data-view="list">
+  <section id="panel" aria-live="polite"></section>
+  <section id="mapwrap" aria-label="Campus map">
+    <div id="map"></div>
+    <div class="maplegend" aria-hidden="true">
+      <div><span class="lg"></span>Reservable room</div>
+      <div><span class="lg round"></span>Drop-in space · number = free seats</div>
+      <div><span class="lg busy"></span>Booked or full</div>
+    </div>
+  </section>
+</main>
+<nav class="mtoggle" id="mtoggle" aria-label="View">
+  <button data-mview="list" aria-pressed="true">List</button>
+  <button data-mview="map" aria-pressed="false">Map</button>
+</nav>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* =========================================================
+   MOCK DATA — edit freely.
+   Times are minutes after midnight (e.g. 14*60+30 = 2:30 PM).
+   Coordinates are approximate; adjust if a pin looks off.
+   Add photo:"images/xyz.jpg" to any room to show a photo.
+   ========================================================= */
+const NOW = 14*60 + 10;            // demo clock: Tue 2:10 PM
+const DAY = "Tue";
+const USER = { label: "DMP 110", lat: 49.26135, lng: -123.24820 };
+
+const H = h => h*60;
+const ROOMS = [
+  // ---- Reservable rooms ----
+  { id:"iccs246", name:"ICCS 246", building:"ICICS / CS", lat:49.26118, lng:-123.24893, bookable:true, capacity:8,
+    seating:"tables", noise:"quiet", outlets:"many", amenities:["Whiteboard","Screen"], open:[8,22], updated:2,
+    bookings:[[H(9),H(11)],[H(15)+30,H(17)+30]], rating:4.6, reviewCount:31,
+    reviews:[{who:"3rd-year CS",r:5,t:"Huge whiteboard and the screen just works. Book early in midterm season.",d:"2 weeks ago"},
+             {who:"Group project team",r:4,t:"Quiet and bright. AC runs a bit cold.",d:"1 month ago"}] },
+  { id:"iccsx237", name:"ICCS X237", building:"ICICS / CS", lat:49.26100, lng:-123.24858, bookable:true, capacity:4,
+    seating:"tables", noise:"quiet", outlets:"some", amenities:["Whiteboard"], open:[8,22], updated:1,
+    bookings:[[H(13)+30,H(15)]], rating:4.1, reviewCount:12,
+    reviews:[{who:"2nd-year",r:4,t:"Small but perfect for 3–4 people.",d:"3 weeks ago"},
+             {who:"Anonymous",r:4,t:"Only two outlets, bring a power bar.",d:"2 months ago"}] },
+  { id:"ikb185", name:"IKB 185", building:"Irving K. Barber Learning Centre", lat:49.26770, lng:-123.25280, bookable:true, capacity:6,
+    seating:"tables", noise:"quiet", outlets:"many", amenities:["Whiteboard","Screen"], open:[8,23], updated:3,
+    bookings:[[H(10),H(12)],[H(14)+30,H(16)]], rating:4.4, reviewCount:48,
+    reviews:[{who:"4th-year",r:5,t:"My group's weekly spot. Outlets at every seat.",d:"1 week ago"},
+             {who:"Anonymous",r:4,t:"Gets warm by the afternoon.",d:"1 month ago"}] },
+  { id:"ikb191", name:"IKB 191", building:"Irving K. Barber Learning Centre", lat:49.26752, lng:-123.25248, bookable:true, capacity:10,
+    seating:"tables", noise:"moderate", outlets:"some", amenities:["Screen"], open:[8,23], updated:1,
+    bookings:[[H(12),H(15)],[H(18),H(20)]], rating:3.9, reviewCount:22,
+    reviews:[{who:"Club exec",r:4,t:"Fits a big group. You can hear the hallway though.",d:"2 weeks ago"},
+             {who:"Anonymous",r:4,t:"Screen cable is sometimes missing.",d:"5 weeks ago"}] },
+  { id:"koerner216", name:"Koerner 216", building:"Koerner Library", lat:49.26905, lng:-123.25535, bookable:true, capacity:6,
+    seating:"tables", noise:"quiet", outlets:"some", amenities:["Whiteboard","Natural light"], open:[9,21], updated:4,
+    bookings:[[H(17),H(19)]], rating:4.7, reviewCount:39,
+    reviews:[{who:"Arts student",r:5,t:"Big windows and very quiet. Best room in Koerner.",d:"4 days ago"},
+             {who:"Anonymous",r:4,t:"Outlets only on one wall.",d:"3 weeks ago"}] },
+  { id:"woodwardB", name:"Woodward Group Room B", building:"Woodward Library", lat:49.26446, lng:-123.24740, bookable:true, capacity:5,
+    seating:"tables", noise:"quiet", outlets:"many", amenities:["Whiteboard"], open:[8,21], updated:2,
+    bookings:[[H(11),H(13)],[H(18),H(20)]], rating:4.3, reviewCount:17,
+    reviews:[{who:"Nursing student",r:4,t:"Reliable and close to the health sciences buildings.",d:"2 weeks ago"},
+             {who:"Anonymous",r:5,t:"Never had an issue with someone taking our booking.",d:"1 month ago"}] },
+  { id:"buchB215", name:"Buchanan B215", building:"Buchanan · classroom, bookable outside class hours", lat:49.26945, lng:-123.25445, bookable:true, capacity:30,
+    seating:"desks", noise:"quiet", outlets:"some", amenities:["Projector","Whiteboard"], open:[8,22], updated:5,
+    bookings:[[H(8),H(17)]], rating:3.8, reviewCount:9,
+    reviews:[{who:"Study group",r:4,t:"Great for big review sessions in the evening.",d:"3 weeks ago"},
+             {who:"Anonymous",r:3,t:"Desks are bolted down, hard to work as a group.",d:"2 months ago"}] },
+  { id:"nest3511", name:"Nest Room 3511", building:"AMS Student Nest", lat:49.26668, lng:-123.25010, bookable:true, capacity:12,
+    seating:"tables", noise:"moderate", outlets:"many", amenities:["Screen","Whiteboard"], open:[7,23], updated:2,
+    bookings:[[H(15),H(16)+30]], rating:4.2, reviewCount:26,
+    reviews:[{who:"Club member",r:4,t:"Close to food, which matters during long sessions.",d:"1 week ago"},
+             {who:"Anonymous",r:4,t:"Some noise from the hallway at lunch.",d:"1 month ago"}] },
+  { id:"orch3018", name:"Orchard Commons 3018", building:"Orchard Commons", lat:49.26045, lng:-123.25085, bookable:true, capacity:6,
+    seating:"tables", noise:"quiet", outlets:"many", amenities:["Whiteboard","Natural light"], open:[8,22], updated:3,
+    bookings:[], rating:4.5, reviewCount:14,
+    reviews:[{who:"Vantage student",r:5,t:"Usually free, worth the walk.",d:"2 weeks ago"},
+             {who:"Anonymous",r:4,t:"A bit far from the main campus.",d:"1 month ago"}] },
+
+  // ---- Drop-in spaces (first come, first served) ----
+  { id:"nestAtrium", name:"Nest Atrium Seating", building:"AMS Student Nest", lat:49.26645, lng:-123.24975, bookable:false, capacity:120, seatsFree:14,
+    seating:"tables", noise:"lively", outlets:"some", amenities:["Food nearby"], open:[7,23], updated:4, rating:3.9, reviewCount:64,
+    reviews:[{who:"1st-year",r:4,t:"Good buzz if you like some background noise.",d:"3 days ago"},
+             {who:"Anonymous",r:3,t:"Outlet seats go fast after 11.",d:"2 weeks ago"}] },
+  { id:"ikb3", name:"IKB 3rd Floor Quiet Area", building:"Irving K. Barber Learning Centre", lat:49.26786, lng:-123.25240, bookable:false, capacity:80, seatsFree:6,
+    seating:"desks", noise:"quiet", outlets:"many", amenities:["Natural light"], open:[8,23], updated:3, rating:4.5, reviewCount:88,
+    reviews:[{who:"Grad student",r:5,t:"Silent and every desk has power.",d:"1 week ago"},
+             {who:"Anonymous",r:4,t:"Packed during exams, check before going.",d:"3 weeks ago"}] },
+  { id:"lifeLounge", name:"Life Building Lounge", building:"Life Building", lat:49.26755, lng:-123.25060, bookable:false, capacity:40, seatsFree:9,
+    seating:"soft", noise:"lively", outlets:"some", amenities:["Food nearby"], open:[7,22], updated:6, rating:3.7, reviewCount:21,
+    reviews:[{who:"2nd-year",r:4,t:"Comfy couches, not for deep focus.",d:"2 weeks ago"},
+             {who:"Anonymous",r:3,t:"Loud at lunchtime.",d:"1 month ago"}] },
+  { id:"iccsAtrium", name:"ICCS Atrium", building:"ICICS / CS", lat:49.26135, lng:-123.24870, bookable:false, capacity:30, seatsFree:0,
+    seating:"tables", noise:"moderate", outlets:"some", amenities:[], open:[8,22], updated:2, rating:3.6, reviewCount:19,
+    reviews:[{who:"CS student",r:4,t:"Convenient between CS classes.",d:"1 week ago"},
+             {who:"Anonymous",r:3,t:"Almost always full midday.",d:"2 weeks ago"}] },
+  { id:"ladha", name:"Abdul Ladha Science Student Centre", building:"Abdul Ladha Centre", lat:49.26588, lng:-123.25132, bookable:false, capacity:50, seatsFree:18,
+    seating:"soft", noise:"moderate", outlets:"many", amenities:["Natural light","Microwaves"], open:[8,22], updated:5, rating:4.4, reviewCount:42,
+    reviews:[{who:"Science student",r:5,t:"Bright, lots of outlets, rarely full.",d:"5 days ago"},
+             {who:"Anonymous",r:4,t:"Can get chatty in the afternoon.",d:"3 weeks ago"}] },
+  { id:"koerner1", name:"Koerner 1st Floor Open Seating", building:"Koerner Library", lat:49.26888, lng:-123.25505, bookable:false, capacity:60, seatsFree:11,
+    seating:"tables", noise:"quiet", outlets:"some", amenities:["Printers"], open:[9,21], updated:4, rating:4.0, reviewCount:35,
+    reviews:[{who:"Arts student",r:4,t:"Quiet enough, close to printers.",d:"1 week ago"},
+             {who:"Anonymous",r:4,t:"Outlets mostly along the walls.",d:"1 month ago"}] },
+  { id:"forestry", name:"Forestry Atrium", building:"Forest Sciences Centre", lat:49.26030, lng:-123.24865, bookable:false, capacity:70, seatsFree:22,
+    seating:"tables", noise:"moderate", outlets:"some", amenities:["Natural light","Food nearby"], open:[7,22], updated:7, rating:4.6, reviewCount:57,
+    reviews:[{who:"4th-year",r:5,t:"Beautiful space, easy to find a seat.",d:"4 days ago"},
+             {who:"Anonymous",r:4,t:"Echoes a bit when busy.",d:"2 weeks ago"}] },
+  { id:"woodwardOpen", name:"Woodward Open Study Area", building:"Woodward Library", lat:49.26430, lng:-123.24712, bookable:false, capacity:90, seatsFree:3,
+    seating:"desks", noise:"quiet", outlets:"many", amenities:[], open:[8,21], updated:3, rating:4.2, reviewCount:29,
+    reviews:[{who:"Med student",r:4,t:"Very quiet, good for long sessions.",d:"1 week ago"},
+             {who:"Anonymous",r:4,t:"Fills up by early afternoon.",d:"3 weeks ago"}] },
+  { id:"lscAtrium", name:"Life Sciences Centre Atrium", building:"Life Sciences Centre", lat:49.26215, lng:-123.24520, bookable:false, capacity:60, seatsFree:25,
+    seating:"soft", noise:"lively", outlets:"none", amenities:["Food nearby"], open:[7,22], updated:6, rating:3.5, reviewCount:16,
+    reviews:[{who:"Bio student",r:4,t:"Always seats, but no outlets anywhere.",d:"2 weeks ago"},
+             {who:"Anonymous",r:3,t:"Busy foot traffic.",d:"1 month ago"}] },
+];
+
+/* ============ App state ============ */
+const DEFAULT_F = { q:"", type:"all", now:false, outlets:false, noise:"any", seating:"any", group:1, walk:0, sort:"distance" };
+const state = {
+  tab:"find", screen:"list", roomId:null,
+  f:{...DEFAULT_F},
+  saved:new Set(["iccs246","koerner216"]),   // pre-saved for the "check a known space" task
+  bookings:[], draft:null, lastId:null, view:"list"
+};
+const byId = id => ROOMS.find(r => r.id === id);
+const LABEL = {
+  seating:{tables:"Tables", desks:"Individual desks", soft:"Soft seating"},
+  noise:{quiet:"Quiet", moderate:"Moderate", lively:"Lively"},
+  outlets:{many:"Many outlets", some:"Some outlets", none:"No outlets"}
+};
+
+/* ============ Helpers ============ */
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function fmt(m){ let h=Math.floor(m/60), mm=m%60; const ap=h>=12?"PM":"AM"; h=h%12||12; return h+":"+String(mm).padStart(2,"0")+" "+ap; }
+function fmtShort(m){ let h=Math.floor(m/60); const ap=h>=12?"p":"a"; h=h%12||12; return h+ap; }
+function walk(r){
+  const R=6371000, rad=x=>x*Math.PI/180;
+  const dLat=rad(r.lat-USER.lat), dLng=rad(r.lng-USER.lng);
+  const a=Math.sin(dLat/2)**2+Math.cos(rad(USER.lat))*Math.cos(rad(r.lat))*Math.sin(dLng/2)**2;
+  const meters=2*R*Math.asin(Math.sqrt(a))*1.3;    // 1.3 = path detour factor
+  return Math.max(1, Math.round(meters/80));        // ~80 m per minute walking
+}
+function stars(n){ const f=Math.round(n); return "★".repeat(f)+"☆".repeat(5-f); }
+function intervals(r){
+  const base=(r.bookings||[]).map(([s,e])=>({s,e,mine:false}));
+  const mine=state.bookings.filter(b=>b.roomId===r.id).map(b=>({s:b.start,e:b.end,mine:true,b}));
+  return base.concat(mine).sort((a,b)=>a.s-b.s);
+}
+function freeAt(r,t){ return !intervals(r).some(i=>i.s<=t && t<i.e); }
+function freeLen(r,t){ const ends=[r.open[1]*60, ...intervals(r).filter(i=>i.s>t).map(i=>i.s)]; return Math.min(...ends)-t; }
+
+function status(r){
+  const o=r.open[0]*60, c=r.open[1]*60;
+  const typeLine = r.bookable ? `Reservable · fits ${r.capacity}` : "Drop-in · first come, first served";
+  if (NOW<o || NOW>=c) return {key:"closed", avail:false, text:"Closed", pin:"Closed", type:typeLine};
+  if (!r.bookable){
+    return r.seatsFree>0
+      ? {key:"free", avail:true, text:`${r.seatsFree} of ${r.capacity} seats free`, pin:String(r.seatsFree), type:typeLine}
+      : {key:"busy", avail:false, text:"Full right now", pin:"Full", type:typeLine};
+  }
+  const iv=intervals(r), cur=iv.find(i=>i.s<=NOW && NOW<i.e);
+  if (cur){
+    if (cur.mine){
+      const b=cur.b;
+      return {key:"mine", avail:false, pin:"Yours", type:typeLine,
+        text: b.checkedIn ? `Checked in · yours until ${fmt(b.end)}` : `Reserved for you · check in by ${fmt(b.start+10)}`};
+    }
+    let end=cur.e, grew=true;
+    while (grew){ grew=false; for (const i of iv) if (i.s<=end && i.e>end){ end=i.e; grew=true; } }
+    return {key:"busy", avail:false, text:`Booked until ${fmt(end)}`, pin:"Booked", type:typeLine};
+  }
+  const next=iv.find(i=>i.s>NOW);
+  return {key:"free", avail:true, text:`Free until ${fmt(next?Math.min(next.s,c):c)}`, pin:"Free", type:typeLine};
+}
+function seatsNow(r){ return r.bookable ? (status(r).avail ? r.capacity : 0) : r.seatsFree; }
+function updatedLine(r){
+  return r.bookable ? `Updated ${r.updated} min ago · from booking records`
+                    : `Updated ${r.updated} min ago · estimated from check-ins`;
+}
+
+function filtered(){
+  const f=state.f, q=f.q.trim().toLowerCase();
+  const list=ROOMS.filter(r=>{
+    if (q && !(r.name+" "+r.building).toLowerCase().includes(q)) return false;
+    if (f.type==="book" && !r.bookable) return false;
+    if (f.type==="drop" && r.bookable) return false;
+    if (f.now && !status(r).avail) return false;
+    if (f.outlets && r.outlets==="none") return false;
+    if (f.noise!=="any" && r.noise!==f.noise) return false;
+    if (f.seating!=="any" && r.seating!==f.seating) return false;
+    if (f.group>1 && (r.bookable ? r.capacity : r.seatsFree) < f.group) return false;
+    if (f.walk && walk(r)>f.walk) return false;
+    return true;
+  });
+  const sorts={ distance:(a,b)=>walk(a)-walk(b), seats:(a,b)=>seatsNow(b)-seatsNow(a), rating:(a,b)=>b.rating-a.rating };
+  return list.sort(sorts[f.sort]);
+}
+
+/* ============ Rendering ============ */
+const panel=document.getElementById("panel");
+
+function renderTabs(){
+  const n=state.bookings.length;
+  const tabs=[["find","Find"],["saved","Saved"],["bookings","Bookings"]];
+  document.getElementById("tabs").innerHTML = tabs.map(([k,l])=>
+    `<button class="tab" data-tab="${k}" aria-current="${state.tab===k}">${l}${k==="bookings"&&n?`<span class="count">${n}</span>`:""}</button>`).join("");
+  document.getElementById("context").textContent = `You're at ${USER.label} · ${DAY} ${fmt(NOW)} (demo time)`;
+}
+
+function itemHTML(r){
+  const s=status(r), saved=state.saved.has(r.id);
+  return `<div class="item" data-item="${r.id}">
+    <button class="item-main" data-open="${r.id}">
+      <span class="name">${esc(r.name)}</span>
+      <span class="meta">${esc(r.building)} · ${walk(r)} min walk</span>
+      <span class="st ${s.key}">${esc(s.text)}</span>
+      <span class="tags">
+        ${r.bookable?'<span class="tag res">Reservable</span>':'<span class="tag">Drop-in</span>'}
+        <span class="tag">${LABEL.noise[r.noise]}</span>
+        <span class="tag">${LABEL.seating[r.seating]}</span>
+        <span class="tag">${LABEL.outlets[r.outlets]}</span>
+      </span>
+    </button>
+    <button class="star" data-save="${r.id}" aria-pressed="${saved}" aria-label="${saved?"Remove from":"Add to"} saved spaces">${saved?"★":"☆"}</button>
+  </div>`;
+}
+
+function segHTML(key, opts){
+  return `<div class="seg" role="group">${opts.map(([v,l])=>
+    `<button data-f="${key}" data-v="${v}" aria-pressed="${String(state.f[key])===String(v)}">${l}</button>`).join("")}</div>`;
+}
+function selHTML(key, label, opts){
+  return `<label class="f">${label}<select data-fsel="${key}">${opts.map(([v,l])=>
+    `<option value="${v}" ${String(state.f[key])===String(v)?"selected":""}>${l}</option>`).join("")}</select></label>`;
+}
+
+function renderFind(){
+  const f=state.f;
+  panel.innerHTML = `
+    <div class="filters">
+      <input class="search" id="q" type="search" placeholder="Search a room or building" value="${esc(f.q)}" aria-label="Search">
+      ${segHTML("type",[["all","All"],["book","Reservable"],["drop","Drop-in"]])}
+      <div class="chips">
+        <button class="chip" data-toggle="now" aria-pressed="${f.now}">Available now</button>
+        <button class="chip" data-toggle="outlets" aria-pressed="${f.outlets}">Has outlets</button>
+      </div>
+      <div class="grid2">
+        ${selHTML("noise","Noise",[["any","Any"],["quiet","Quiet"],["moderate","Moderate"],["lively","Lively"]])}
+        ${selHTML("seating","Seating",[["any","Any"],["tables","Tables"],["desks","Individual desks"],["soft","Soft seating"]])}
+        ${selHTML("group","Group size",[1,2,3,4,5,6,8,10,12].map(n=>[n, n===1?"Just me":n+" people"]))}
+        ${selHTML("walk","Distance",[[0,"Any"],[5,"≤ 5 min walk"],[10,"≤ 10 min walk"],[15,"≤ 15 min walk"]])}
+      </div>
+      <button class="reset" data-reset>Clear filters</button>
+    </div>
+    <div class="resulthead">
+      <span id="rcount"></span>
+      <label>Sort <select data-fsel="sort" aria-label="Sort">
+        <option value="distance" ${f.sort==="distance"?"selected":""}>Nearest</option>
+        <option value="seats" ${f.sort==="seats"?"selected":""}>Most free seats</option>
+        <option value="rating" ${f.sort==="rating"?"selected":""}>Top rated</option>
+      </select></label>
+    </div>
+    <div class="list" id="results"></div>`;
+  document.getElementById("q").addEventListener("input", e=>{ state.f.q=e.target.value; renderResults(); });
+  renderResults();
+}
+function renderResults(){
+  const list=filtered();
+  document.getElementById("rcount").textContent = `${list.length} space${list.length===1?"":"s"}`;
+  document.getElementById("results").innerHTML = list.length ? list.map(itemHTML).join("")
+    : `<div class="empty">No spaces match. Try removing a filter.</div>`;
+  updateMarkers();
+}
+
+function renderSaved(){
+  const list=ROOMS.filter(r=>state.saved.has(r.id));
+  panel.innerHTML = `<div class="pad"><h1>Saved spaces</h1><div class="meta">Check the spaces you already trust at a glance.</div></div>
+    <div class="list">${list.length?list.map(itemHTML).join(""):`<div class="empty">Tap ☆ on any space to save it here.</div>`}</div>`;
+  updateMarkers();
+}
+
+function bookingStateHTML(b){
+  if (b.checkedIn) return `<span class="st free">Checked in · room marked as occupied</span>`;
+  if (b.start<=NOW) return `<span class="st mine">Check-in open until ${fmt(b.start+10)}</span>`;
+  return `<span class="st closed">Check-in opens at ${fmt(b.start)}</span>`;
+}
+function renderBookings(){
+  const list=[...state.bookings].sort((a,b)=>a.start-b.start);
+  panel.innerHTML = `<div class="pad"><h1>My bookings</h1>
+    <div class="meta">Check in within 10 minutes of your start time, or the room is released to other students.</div></div>
+    <div class="pad" style="padding-top:0">${list.length ? list.map(b=>{ const r=byId(b.roomId); return `
+      <div class="bk">
+        <span class="name">${esc(r.name)}</span>
+        <span class="meta">${DAY} ${fmt(b.start)} – ${fmt(b.end)}${b.weekly?" · repeats weekly":""} · ${b.size} ${b.size===1?"person":"people"}</span>
+        ${bookingStateHTML(b)}
+        <div class="actions">
+          ${!b.checkedIn?`<button class="btn" data-checkin="${b.id}" ${b.start<=NOW?"":"disabled"}>Check in</button>`:""}
+          <button class="btn ghost" data-open="${r.id}">View room</button>
+          <button class="btn ghost" data-cancel="${b.id}">${b.checkedIn?"End early":"Cancel"}</button>
+        </div>
+      </div>`;}).join("") : `<div class="empty">No bookings yet. Reserve a room from Find or Saved.</div>`}</div>`;
+  updateMarkers();
+}
+
+function timelineHTML(r){
+  const o=r.open[0]*60, c=r.open[1]*60, span=c-o, pct=m=>((m-o)/span*100).toFixed(2)+"%";
+  const segs=intervals(r).map(i=>`<div class="seg-b ${i.mine?"mine":""}" style="left:${pct(i.s)};width:${((i.e-i.s)/span*100).toFixed(2)}%"></div>`).join("");
+  const labels=[]; for (let m=o; m<=c; m+=180) labels.push(`<span style="left:${pct(m)}">${fmtShort(m)}</span>`);
+  return `<h2>Today's schedule</h2>
+    <div class="timeline" role="img" aria-label="Booked times today: ${intervals(r).map(i=>fmt(i.s)+" to "+fmt(i.e)).join(", ")||"none"}">${segs}<div class="nowline" style="left:${pct(NOW)}"></div></div>
+    <div class="tlabels">${labels.join("")}</div>
+    <div class="legend"><span><i class="sw" style="background:var(--free-bg);border:1px solid #cfe5d8"></i>Free</span>
+      <span><i class="sw" style="background:#e2d6cf"></i>Booked</span>
+      ${intervals(r).some(i=>i.mine)?'<span><i class="sw" style="background:var(--accent)"></i>Yours</span>':""}
+      <span><i class="sw" style="background:var(--text);width:2px"></i>Now</span></div>`;
+}
+
+function renderDetail(){
+  const r=byId(state.roomId), s=status(r), saved=state.saved.has(r.id);
+  const canReserve = r.bookable && startOptions(r).length>0;
+  panel.innerHTML = `<div class="pad">
+    <button class="back" data-back>← Back</button>
+    ${r.photo?`<img class="photo" src="${esc(r.photo)}" alt="${esc(r.name)}">`:""}
+    <h1>${esc(r.name)}</h1>
+    <div class="meta">${esc(r.building)} · ${walk(r)} min walk from ${USER.label}</div>
+    <div class="statuscard ${s.key}">
+      <div class="big">${esc(s.text)}</div>
+      <div class="meta">${esc(s.type)}</div>
+      <div class="updated">${updatedLine(r)}</div>
+    </div>
+    <dl class="facts">
+      <div class="fact"><dt>Distance</dt><dd>${walk(r)} min walk</dd></div>
+      <div class="fact"><dt>Seating</dt><dd>${LABEL.seating[r.seating]}</dd></div>
+      <div class="fact"><dt>Noise</dt><dd>${LABEL.noise[r.noise]}</dd></div>
+      <div class="fact"><dt>Outlets</dt><dd>${LABEL.outlets[r.outlets]}</dd></div>
+      <div class="fact"><dt>Capacity</dt><dd>${r.capacity} seats</dd></div>
+      <div class="fact"><dt>Hours today</dt><dd>${fmt(r.open[0]*60)} – ${fmt(r.open[1]*60)}</dd></div>
+    </dl>
+    ${r.amenities.length?`<div class="note">Also: ${r.amenities.map(esc).join(" · ")}</div>`:""}
+    ${r.bookable?timelineHTML(r):""}
+    <div class="actions">
+      ${r.bookable?`<button class="btn wide" data-reserve="${r.id}" ${canReserve?"":"disabled"}>Reserve</button>`:""}
+      <button class="btn ghost ${r.bookable?"":"wide"}" data-save="${r.id}" aria-pressed="${saved}">${saved?"★ Saved":"☆ Save"}</button>
+    </div>
+    ${r.bookable
+      ? `<div class="policy">Reservations are held for 10 minutes after the start time. If nobody checks in, the room is released so it isn't wasted.</div>`
+      : `<div class="note">This space can't be reserved. Seat counts are estimates from student check-ins.</div>`}
+    <h2>Reviews <span class="stars">${stars(r.rating)}</span> <span class="meta">${r.rating.toFixed(1)} · ${r.reviewCount} reviews</span></h2>
+    ${r.reviews.map(v=>`<div class="review"><div><span class="stars">${stars(v.r)}</span> <span class="who">${esc(v.who)} · ${esc(v.d)}</span></div><div>${esc(v.t)}</div></div>`).join("")}
+  </div>`;
+  updateMarkers();
+}
+
+function startOptions(r){
+  const c=r.open[1]*60, out=[];
+  if (freeAt(r,NOW) && freeLen(r,NOW)>=30) out.push(NOW);
+  for (let t=Math.ceil((NOW+1)/30)*30; t<=c-30; t+=30) if (freeAt(r,t) && freeLen(r,t)>=30) out.push(t);
+  return out;
+}
+function renderReserve(){
+  const r=byId(state.roomId), opts=startOptions(r), d=state.draft;
+  if (!opts.includes(d.start)) d.start=opts[0];
+  const durs=[30,60,90,120,180].filter(m=>m<=freeLen(r,d.start));
+  if (!durs.includes(d.dur)) d.dur=durs.includes(60)?60:durs[durs.length-1];
+  d.size=Math.min(d.size, r.capacity);
+  panel.innerHTML = `<div class="pad">
+    <button class="back" data-back>← Back</button>
+    <h1>Reserve ${esc(r.name)}</h1>
+    <div class="meta">${esc(r.building)} · fits ${r.capacity}</div>
+    <div class="form">
+      <label>Start
+        <select data-d="start">${opts.map(t=>`<option value="${t}" ${t===d.start?"selected":""}>${t===NOW?"Now ("+fmt(t)+")":fmt(t)}</option>`).join("")}</select></label>
+      <label>Length
+        <select data-d="dur">${durs.map(m=>`<option value="${m}" ${m===d.dur?"selected":""}>${m<60?m+" min":(m/60)+" hr"+(m>60?"s":"")}</option>`).join("")}</select></label>
+      <label>Group size
+        <select data-d="size">${Array.from({length:r.capacity},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===d.size?"selected":""}>${n===1?"Just me":n+" people"}</option>`).join("")}</select></label>
+      <label class="check"><input type="checkbox" data-d="weekly" ${d.weekly?"checked":""}> Repeat every ${DAY}</label>
+      <div class="summary"><b>${DAY} ${fmt(d.start)} – ${fmt(d.start+d.dur)}</b>${d.weekly?" · every week":""}<br>
+        Check in by ${fmt(d.start+10)} or the room is released.</div>
+      <button class="btn" data-confirm>Confirm reservation</button>
+    </div></div>`;
+  updateMarkers();
+}
+
+function renderConfirm(){
+  const b=state.bookings.find(x=>x.id===state.lastId), r=byId(b.roomId);
+  const when=`${DAY} ${fmt(b.start)} – ${fmt(b.end)}`;
+  panel.innerHTML = `<div class="pad">
+    <div class="done" aria-hidden="true">✓</div>
+    <h1>Reserved</h1>
+    <div class="meta">${esc(r.name)} · ${when}${b.weekly?" · every week":""} · ${b.size} ${b.size===1?"person":"people"}</div>
+    <div class="policy">Check in within 10 minutes of your start time (by ${fmt(b.start+10)}). If you don't, the room is released to other students.</div>
+    <div class="actions">
+      ${b.checkedIn ? `<span class="st free" style="align-self:center">Checked in · room marked as occupied</span>`
+        : `<button class="btn wide" data-checkin="${b.id}" ${b.start<=NOW?"":"disabled"}>${b.start<=NOW?"Check in now":"Check-in opens "+fmt(b.start)}</button>`}
+      <button class="btn ghost" data-tab="bookings">My bookings</button>
+    </div>
+    <div class="demo">Email preview · demo only, nothing is sent</div>
+    <div class="email">
+      <div class="eh"><span>From: <b>Study Spaces</b></span><span>To: you@student.ubc.ca</span><span>Subject: <b>Booking confirmed: ${esc(r.name)}, ${when}</b></span></div>
+      <div class="eb">
+        <p>Hi,</p>
+        <p>Your booking for <b>${esc(r.name)}</b> (${esc(r.building)}) is confirmed for <b>${when}</b>${b.weekly?", repeating every week":""}.</p>
+        <p>Please check in on the app within 10 minutes of your start time. If you don't, the room is released so other students can use it.</p>
+        <p>Plans changed? Cancel from My bookings so someone else can take the room.</p>
+      </div>
+    </div>
+  </div>`;
+  updateMarkers();
+}
+
+function render(){
+  renderTabs();
+  if (state.screen==="detail") renderDetail();
+  else if (state.screen==="reserve") renderReserve();
+  else if (state.screen==="confirm") renderConfirm();
+  else if (state.tab==="saved") renderSaved();
+  else if (state.tab==="bookings") renderBookings();
+  else renderFind();
+  panel.scrollTop=0;
+}
+
+/* ============ Map ============ */
+let map=null; const markers={};
+// Rooms in the same building share one map point and stack vertically so they never overlap.
+const ANCHOR={};
+ROOMS.forEach(r=>{ if(!ANCHOR[r.building]) ANCHOR[r.building]=[r.lat,r.lng]; });
+function pinIcon(r, selected, k=0, n=1){
+  const s=status(r), dy=(k-(n-1)/2)*24;
+  return L.divIcon({ className:"pinwrap", iconSize:[0,0],
+    html:`<div class="pin ${r.bookable?"r":""} ${s.key} ${selected?"sel":""}" style="margin-top:${dy}px">${esc(s.pin)}</div>` });
+}
+function visibleIds(){
+  if (state.tab==="saved") return ROOMS.filter(r=>state.saved.has(r.id)).map(r=>r.id);
+  if (state.tab==="bookings") return [...new Set(state.bookings.map(b=>b.roomId))];
+  return filtered().map(r=>r.id);
+}
+function updateMarkers(){
+  if (!map) return;
+  const vis=new Set(visibleIds());
+  if (state.roomId && state.screen!=="list") vis.add(state.roomId);
+  const groups={};
+  ROOMS.forEach(r=>{ if (vis.has(r.id)) (groups[r.building]=groups[r.building]||[]).push(r.id); });
+  ROOMS.forEach(r=>{
+    const m=markers[r.id];
+    if (vis.has(r.id)){
+      const g=groups[r.building];
+      m.setIcon(pinIcon(r, state.screen!=="list" && r.id===state.roomId, g.indexOf(r.id), g.length));
+      m.setZIndexOffset(r.id===state.roomId?1000:0);
+      if (!map.hasLayer(m)) m.addTo(map);
+    } else if (map.hasLayer(m)) map.removeLayer(m);
+  });
+}
+function initMap(){
+  const el=document.getElementById("map");
+  if (!window.L){ el.innerHTML='<div class="mapfail">The map needs an internet connection. The list still works.</div>'; return; }
+  // Locked to UBC Vancouver campus so participants can't wander off the map.
+  const UBC=L.latLngBounds([49.2520,-123.2650],[49.2760,-123.2330]);
+  map=L.map(el,{zoomControl:true, maxBounds:UBC, maxBoundsViscosity:1, minZoom:15}).setView([49.2650,-123.2505],16);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+    {attribution:'&copy; OpenStreetMap contributors &copy; CARTO', subdomains:"abcd", maxZoom:20}).addTo(map);
+  L.circleMarker([USER.lat,USER.lng],{radius:7,color:"#fff",weight:2,fillColor:"#1f5fbf",fillOpacity:1})
+    .addTo(map).bindTooltip("You · "+USER.label,{permanent:true,direction:"right",offset:[8,0]});
+  ROOMS.forEach(r=>{
+    markers[r.id]=L.marker(ANCHOR[r.building],{icon:pinIcon(r,false),title:r.name,keyboard:true})
+      .on("click",()=>openRoom(r.id))
+      .on("mouseover",()=>hl(r.id,true)).on("mouseout",()=>hl(r.id,false));
+  });
+}
+function hl(id,on){ const el=panel.querySelector(`[data-item="${id}"]`); if (el) el.classList.toggle("hl",on); }
+
+/* ============ Actions ============ */
+function setView(v){
+  state.view=v;
+  document.getElementById("app").dataset.view=v;
+  document.querySelectorAll("#mtoggle button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.mview===v));
+  if (v==="map" && map) setTimeout(()=>map.invalidateSize(),0);
+}
+function openRoom(id){
+  state.roomId=id; state.screen="detail"; render(); setView("list");
+  const r=byId(id); if (map) map.panTo(ANCHOR[r.building]);
+}
+function toggleSave(id){
+  state.saved.has(id) ? state.saved.delete(id) : state.saved.add(id);
+  if (state.tab==="find" && state.screen==="list") renderResults(); else render();
+}
+
+document.addEventListener("click", e=>{
+  const t=e.target.closest("button"); if (!t) return;
+  const d=t.dataset;
+  if (d.tab){ state.tab=d.tab; state.screen="list"; state.roomId=null; render(); }
+  else if (d.mview){ setView(d.mview); }
+  else if (d.open){ openRoom(d.open); }
+  else if (d.save){ toggleSave(d.save); }
+  else if (d.f){ state.f[d.f]=d.v; renderFind(); }
+  else if (d.toggle){ state.f[d.toggle]=!state.f[d.toggle]; renderFind(); }
+  else if (d.reset!==undefined){ state.f={...DEFAULT_F}; renderFind(); }
+  else if (d.back!==undefined){
+    if (state.screen==="reserve") state.screen="detail"; else { state.screen="list"; state.roomId=null; }
+    render();
+  }
+  else if (d.reserve){
+    const r=byId(d.reserve);
+    state.draft={ start:startOptions(r)[0], dur:60, size:Math.max(1,Math.min(state.f.group,r.capacity)), weekly:false };
+    state.screen="reserve"; render();
+  }
+  else if (d.confirm!==undefined){
+    const dr=state.draft, id="b"+Date.now();
+    state.bookings.push({ id, roomId:state.roomId, start:dr.start, end:dr.start+dr.dur, size:dr.size, weekly:dr.weekly, checkedIn:false });
+    state.lastId=id; state.screen="confirm"; render();
+  }
+  else if (d.checkin){
+    const b=state.bookings.find(x=>x.id===d.checkin); if (b) b.checkedIn=true; render();
+  }
+  else if (d.cancel){
+    state.bookings=state.bookings.filter(x=>x.id!==d.cancel); render();
+  }
+});
+document.addEventListener("change", e=>{
+  const t=e.target;
+  if (t.dataset.fsel){ state.f[t.dataset.fsel] = ["group","walk"].includes(t.dataset.fsel) ? Number(t.value) : t.value; renderResults(); }
+  else if (t.dataset.d){
+    const k=t.dataset.d; state.draft[k] = k==="weekly" ? t.checked : Number(t.value); renderReserve();
+  }
+});
+
+initMap();
+render();
+</script>
+</body>
+</html>
