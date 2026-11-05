@@ -132,6 +132,10 @@ h2{font-size:14px;margin:20px 0 8px}
 .pin.closed{border-color:var(--closed);color:var(--closed)}
 .pin.mine{border-color:var(--accent);color:var(--accent)}
 .pin.sel{background:var(--text);border-color:var(--text);color:#fff;z-index:1000}
+.leaflet-container{background:#efebe3;font-family:inherit}
+.street{position:absolute;white-space:nowrap;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#a59d8e;pointer-events:none}
+.blabel{position:absolute;white-space:nowrap;transform:translate(calc(-100% - 34px),-50%);font-size:11px;font-weight:600;color:#6b6457;text-shadow:0 0 3px #efebe3,0 0 3px #efebe3,0 0 3px #efebe3;pointer-events:none}
+.blabel.right{transform:translate(34px,-50%)}
 .maplegend{position:absolute;left:12px;bottom:20px;z-index:500;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--muted);display:grid;gap:4px}
 .lg{display:inline-block;width:14px;height:10px;border:2px solid var(--free);margin-right:6px;vertical-align:-1px;background:#fff}
 .lg.round{border-radius:999px}
@@ -166,6 +170,7 @@ h2{font-size:14px;margin:20px 0 8px}
       <div><span class="lg"></span>Reservable room</div>
       <div><span class="lg round"></span>Drop-in space · number = free seats</div>
       <div><span class="lg busy"></span>Booked or full</div>
+      <div style="font-size:11px">Simplified campus map</div>
     </div>
   </section>
 </main>
@@ -614,11 +619,13 @@ function updateMarkers(){
 function initMap(){
   const el=document.getElementById("map");
   if (!window.L){ el.innerHTML='<div class="mapfail">The map needs an internet connection. The list still works.</div>'; return; }
-  // Locked to UBC Vancouver campus so participants can't wander off the map.
-  const UBC=L.latLngBounds([49.2520,-123.2650],[49.2760,-123.2330]);
-  map=L.map(el,{zoomControl:true, maxBounds:UBC, maxBoundsViscosity:1, minZoom:15}).setView([49.2650,-123.2505],16);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-    {attribution:'&copy; OpenStreetMap contributors &copy; CARTO', subdomains:"abcd", maxZoom:20}).addTo(map);
+  // Schematic campus map drawn in the page: no tiles, no API key.
+  const corners=[uv(-300,-330),uv(-300,720),uv(1350,-330),uv(1350,720)];
+  const BOUNDS=L.latLngBounds(corners);
+  map=L.map(el,{zoomControl:true, attributionControl:false, maxBounds:BOUNDS.pad(0.05), maxBoundsViscosity:1,
+                minZoom:15, maxZoom:18, zoomSnap:0.5});
+  drawCampus();
+  fitCampus();
   L.circleMarker([USER.lat,USER.lng],{radius:7,color:"#fff",weight:2,fillColor:"#1f5fbf",fillOpacity:1})
     .addTo(map).bindTooltip("You · "+USER.label,{permanent:true,direction:"right",offset:[8,0]});
   ROOMS.forEach(r=>{
@@ -627,14 +634,64 @@ function initMap(){
       .on("mouseover",()=>hl(r.id,true)).on("mouseout",()=>hl(r.id,false));
   });
 }
+function fitCampus(){ if (map) map.fitBounds(L.latLngBounds(Object.values(ANCHOR).concat([[USER.lat,USER.lng]])), {padding:[40,40]}); }
+let fittedOnShow=false;
 function hl(id,on){ const el=panel.querySelector(`[data-item="${id}"]`); if (el) el.classList.toggle("hl",on); }
+
+/* ---- Schematic UBC map ----
+   UBC's street grid is rotated, so the map is drawn in a local frame:
+   u = metres along Main Mall (towards the south-east), v = metres across it (towards the north-east),
+   with Koerner Library at (0,0). Streets are listed in that frame; buildings come from the room data. */
+const ORIGIN=[49.26905,-123.25535], M_E=72700, M_N=111200;
+const AU=[0.4476,-0.8943], AV=[0.8943,0.4476];   // unit vectors (east, north)
+function uv(u,v){ const e=u*AU[0]+v*AV[0], n=u*AU[1]+v*AV[1]; return [ORIGIN[0]+n/M_N, ORIGIN[1]+e/M_E]; }
+function toUV(lat,lng){ const e=(lng-ORIGIN[1])*M_E, n=(lat-ORIGIN[0])*M_N; return [e*AU[0]+n*AU[1], e*AV[0]+n*AV[1]]; }
+// [name, start [u,v], end [u,v], major?, label position [u,v]]
+const STREETS=[
+  ["Main Mall",            [-300,-35],[1350,-35], true,  [560,-35]],
+  ["East Mall",            [-300,160],[1350,160], true,  [820,160]],
+  ["West Mall",            [-300,-195],[1350,-195],false,[560,-195]],
+  ["Health Sciences Mall", [490,240],[1350,240],  false, [880,240]],
+  ["Wesbrook Mall",        [-300,430],[1350,430], true,  [600,430]],
+  ["Agricultural Rd",      [110,-195],[110,160],  false, [110,-120]],
+  ["Student Union Blvd",   [355,160],[355,720],   false, [355,560]],
+  ["University Blvd",      [490,-35],[490,720],   true,  [490,340]],
+  ["Agronomy Rd",          [1052,-330],[1052,720],true,  [1052,560]],
+];
+const RIGHT=new Set(["Life Building","Forest Sciences Centre","Buchanan · classroom, bookable outside class hours"]); // labels drawn right of the pins
+const BLABEL={"ICICS / CS":"ICICS","Irving K. Barber Learning Centre":"IKB Learning Centre","AMS Student Nest":"The Nest",
+  "Abdul Ladha Centre":"Ladha Centre","Buchanan · classroom, bookable outside class hours":"Buchanan"};
+function rect(u,v,hu,hv){ return [uv(u-hu,v-hv),uv(u-hu,v+hv),uv(u+hu,v+hv),uv(u+hu,v-hv)]; }
+function textIcon(text, cls, angle){
+  return L.divIcon({className:"pinwrap", iconSize:[0,0],
+    html:`<div class="${cls}" style="${angle!=null?`transform:translate(-50%,-50%) rotate(${angle}deg)`:""}">${esc(text)}</div>`});
+}
+function drawCampus(){
+  const ALONG=63.4, ACROSS=-26.6;   // on-screen angle of streets running along u / along v
+  STREETS.forEach(([,a,b,major])=>{
+    const pts=[uv(...a),uv(...b)];
+    L.polyline(pts,{color:"#d9d3c7",weight:major?11:8,interactive:false,lineCap:"butt"}).addTo(map);
+    L.polyline(pts,{color:"#ffffff",weight:major?8:5,interactive:false,lineCap:"butt"}).addTo(map);
+  });
+  STREETS.forEach(([name,a,b,,lab])=>{
+    const angle = a[0]===b[0] ? ACROSS : ALONG;
+    L.marker(uv(...lab),{icon:textIcon(name,"street",angle),interactive:false,keyboard:false,zIndexOffset:-2000}).addTo(map);
+  });
+  const blds=Object.entries(ANCHOR).map(([name,ll])=>({name,ll}));
+  blds.push({name:"Hugh Dempster Pavilion", ll:[USER.lat,USER.lng], small:true, nolabel:true});
+  blds.forEach(b=>{
+    const [u,v]=toUV(...b.ll);
+    L.polygon(rect(u,v,30,b.small?25:30),{color:"#cdc6b8",weight:1,fillColor:"#e4dfd5",fillOpacity:1,interactive:false}).addTo(map);
+    if (!b.nolabel) L.marker(b.ll,{icon:textIcon(BLABEL[b.name]||b.name, RIGHT.has(b.name)?"blabel right":"blabel"),interactive:false,keyboard:false,zIndexOffset:-1000}).addTo(map);
+  });
+}
 
 /* ============ Actions ============ */
 function setView(v){
   state.view=v;
   document.getElementById("app").dataset.view=v;
   document.querySelectorAll("#mtoggle button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.mview===v));
-  if (v==="map" && map) setTimeout(()=>map.invalidateSize(),0);
+  if (v==="map" && map) setTimeout(()=>{ map.invalidateSize(); if (!fittedOnShow){ fitCampus(); fittedOnShow=true; } },0);
 }
 function openRoom(id){
   state.roomId=id; state.screen="detail"; render(); setView("list");
