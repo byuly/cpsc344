@@ -157,6 +157,9 @@ h2{font-size:14px;margin:20px 0 8px}
 .email .eh b{color:var(--text);font-weight:550}
 .email .eb{padding:12px 14px;font-size:13px}
 .email .eb p{margin:0 0 8px}
+.demobar{background:#fff7e0;border:1px dashed #dcc06a;color:#6f5300;padding:8px 10px;border-radius:8px;font-size:12px;margin-bottom:14px}
+.bigicon{font-size:30px;line-height:1;margin-bottom:6px}
+.pass{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-top:14px;display:grid;gap:2px}
 .demo{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:18px}
 
 /* Bookings */
@@ -777,6 +780,54 @@ function renderConfirm(){
   </div>`;
 }
 
+
+/* --- Arrival: shown when the app detects you at a room you booked (simulated in the demo) --- */
+function renderArrive(c){
+  const b=state.bookings.find(x=>x.id===c.bookingId);
+  if (!b){ state.stack.pop(); return render(); }
+  const r=byId(b.roomId), bd=bld(r.bid), atTime = b.day===0 ? Math.max(b.start, NOW) : b.start;
+  const demo=`<div class="demobar">Demo: pretending it's ${dateShort(b.day)}, ${fmt(atTime)} and you just walked into ${esc(r.name)}.</div>`;
+  const pass=`<div class="pass"><div class="meta">Booking pass</div>
+      <div class="name" style="font-size:16px">${esc(r.name)}</div>
+      <div>${dateShort(b.day)} · ${fmt(b.start)} – ${fmt(b.end)}</div>
+      <div class="meta">Booked by ${esc(USER.name)} · ${b.size} ${b.size===1?"person":"people"} · #${b.id.slice(-5)}</div></div>`;
+  if (c.mode==="checked"){
+    panel.innerHTML=`<div class="pad">${demo}
+      <div class="bigicon" style="color:var(--free)" aria-hidden="true">✓</div>
+      <h1>You're checked in</h1>
+      <div class="meta">${esc(r.name)} · ${esc(bd.name)}</div>
+      <div class="statuscard free"><div class="big">Yours until ${fmt(b.end)}</div>
+        <div class="meta">Other students now see this room as occupied.</div></div>
+      ${pass}
+      <div class="actions"><button class="btn wide" data-done>Done</button><button class="btn ghost" data-endearly="${b.id}">End early</button></div>
+      <div class="note">Leaving early? End your booking so someone else can use the room.</div></div>`;
+    return;
+  }
+  if (c.mode==="conflict"){
+    panel.innerHTML=`<div class="pad">${demo}
+      <h1>Someone is in your room</h1>
+      <div class="meta">${esc(r.name)} · ${esc(bd.name)}</div>
+      <div class="statuscard mine"><div class="big">Your booking is still valid</div>
+        <div class="meta">We've told the people in the room that it's booked from ${fmt(b.start)}. Show them your booking pass below.</div></div>
+      ${pass}
+      <div class="policy">Your check-in deadline is paused while this is sorted out. If the room isn't free within 10 minutes, building staff are notified.</div>
+      <div class="actions"><button class="btn wide" data-docheck="${b.id}">The room is free now · Check in</button></div>
+      <button class="linkbtn" style="margin-top:12px" data-back>← Back</button></div>`;
+    return;
+  }
+  panel.innerHTML=`<div class="pad">${demo}
+    <div class="bigicon" aria-hidden="true">📍</div>
+    <h1>You're at ${esc(r.name)}</h1>
+    <div class="meta">${esc(bd.name)}</div>
+    <div class="statuscard mine"><div class="big">Your booking: ${fmt(b.start)} – ${fmt(b.end)}</div>
+      <div class="meta">${dateShort(b.day)} · ${b.size} ${b.size===1?"person":"people"}</div></div>
+    <div class="policy"><b>Check in by ${fmt(b.start+10)}</b>, or the room is released to other students.</div>
+    <div class="actions"><button class="btn wide" data-docheck="${b.id}">Check in</button></div>
+    <button class="rowbtn" data-conflict><span>Someone else is using this room</span><span class="meta">→</span></button>
+    <button class="linkbtn" style="margin-top:14px" data-back>Not now</button>
+  </div>`;
+}
+
 /* --- My bookings --- */
 function bookingStateHTML(b){
   if (b.checkedIn) return `<span class="st free">Checked in · room marked as occupied</span>`;
@@ -798,6 +849,7 @@ function renderBookings(){
           <button class="btn ghost" data-open="${r.id}">View room</button>
           <button class="btn ghost" data-cancel="${b.id}">${b.checkedIn?"End early":"Cancel"}</button>
         </div>
+        ${!b.checkedIn?`<button class="linkbtn" style="justify-self:start;margin-top:4px" data-arrive="${b.id}">Simulate arriving at this room (demo) →</button>`:""}
       </div>`;}).join("") : `<div class="empty">No bookings yet. Book a room from Find, Saved, or the map.</div>`}</div>`;
 }
 
@@ -814,6 +866,7 @@ function render(){
   else if (c.screen==="reviews") renderReviews(c);
   else if (c.screen==="book") renderBook();
   else if (c.screen==="confirm") renderConfirm();
+  else if (c.screen==="arrive") renderArrive(c);
   updateMarkers();
   panel.scrollTop=0;
 }
@@ -964,6 +1017,11 @@ document.addEventListener("click", e=>{
   else if (d.reset!==undefined){ state.f={...DEFAULT_F}; renderFind(); }
   else if (d.checkin){ const b=state.bookings.find(x=>x.id===d.checkin); if (b) b.checkedIn=true; render(); }
   else if (d.resched){ startBooking(state.bookings.find(x=>x.id===d.resched).roomId, state.bookings.find(x=>x.id===d.resched)); }
+  else if (d.arrive){ const b=state.bookings.find(x=>x.id===d.arrive); go({screen:"arrive", bookingId:b.id, roomId:b.roomId, mode:"arrive"}); }
+  else if (d.docheck){ const b=state.bookings.find(x=>x.id===d.docheck); if (b) b.checkedIn=true; cur().mode="checked"; render(); }
+  else if (d.conflict!==undefined){ cur().mode="conflict"; render(); }
+  else if (d.done!==undefined){ state.tab="bookings"; state.stack=[]; render(); }
+  else if (d.endearly){ state.bookings=state.bookings.filter(x=>x.id!==d.endearly); state.tab="bookings"; state.stack=[]; render(); }
   else if (d.cancel){ state.bookings=state.bookings.filter(x=>x.id!==d.cancel); render(); }
 });
 document.addEventListener("change", e=>{
@@ -976,7 +1034,13 @@ document.addEventListener("change", e=>{
 });
 
 initMap();
+// Open index.html#arrive to jump straight to the arrival screen (handy for walkthroughs).
+if (location.hash==="#arrive"){
+  const b={ id:"b"+Date.now(), roomId:"x237", day:1, start:H(11), end:H(13), size:4, weekly:false, checkedIn:false };
+  state.bookings.push(b); state.tab="bookings"; state.stack=[{screen:"arrive", bookingId:b.id, roomId:b.roomId, mode:"arrive"}];
+}
 render();
+window.addEventListener("hashchange", ()=>{ if (location.hash==="#arrive") location.reload(); });
 </script>
 </body>
 </html>

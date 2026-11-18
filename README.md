@@ -21,6 +21,7 @@ The photos are about 1.5 MB in total (resized, with GPS and camera data removed)
 | Confirmation | After **Confirm booking**. Includes a preview of the confirmation email. |
 | Reviews | **See reviews** on a room. |
 | My bookings | **Bookings** tab. Check in, reschedule, or cancel. |
+| Arrival | **Bookings** tab → "Simulate arriving at this room (demo)", or open `index.html#arrive` to jump straight there. Check in, or report that someone else is using your room. |
 | Saved | **Saved** tab. ICICS X237 and the Woodward Quiet Study Room start out saved. |
 
 ## Built-in cases for testing
