@@ -84,7 +84,13 @@ h2{font-size:14px;margin:20px 0 8px}
 .fact{background:var(--bg);padding:9px 12px}
 .fact dt{font-size:12px;color:var(--muted)}
 .fact dd{margin:0;font-weight:550}
-.photo{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r);margin-bottom:14px;background:var(--bg2)}
+.photofig{margin:0 0 14px}
+.photo{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r);background:var(--bg2)}
+.credit{font-size:11px;color:var(--muted);margin-top:4px}
+.credit a{color:inherit}
+.item-main.has-thumb{grid-template-columns:64px 1fr;column-gap:12px}
+.item-main.has-thumb>span{grid-column:2}
+.thumb{grid-column:1;grid-row:1/span 4;width:64px;height:64px;border-radius:8px;object-fit:cover;background:var(--bg2)}
 .timeline{position:relative;height:26px;border-radius:6px;background:var(--free-bg);overflow:hidden}
 .seg-b{position:absolute;top:0;bottom:0;background:#e2d6cf}
 .seg-b.mine{background:var(--accent)}
@@ -185,10 +191,23 @@ h2{font-size:14px;margin:20px 0 8px}
    MOCK DATA — edit freely.
    Times are minutes after midnight (e.g. 14*60+30 = 2:30 PM).
    Coordinates are approximate; adjust if a pin looks off.
-   Add photo:"images/xyz.jpg" to any room to show a photo.
+   Room photos live in images/<room id>.jpg; credits are in PHOTOS below the room list.
    ========================================================= */
-const NOW = 14*60 + 10;            // demo clock: Tue 2:10 PM
-const DAY = "Tue";
+// Clock: real current time at UBC (Vancouver), so it's right even if the laptop is set to another zone.
+// For a fixed scenario, open the page with ?time=14:10&day=Tue
+const TZ = "America/Vancouver";
+const PINNED = (()=>{
+  const p=new URLSearchParams(location.search), m=/^(\d{1,2}):(\d{2})$/.exec(p.get("time")||"");
+  return m ? { now:Number(m[1])*60+Number(m[2]), day:p.get("day")||"Tue" } : null;
+})();
+function campusClock(){
+  if (PINNED) return PINNED;
+  const parts=new Intl.DateTimeFormat("en-US",{timeZone:TZ, weekday:"short", hour:"numeric", minute:"numeric", hourCycle:"h23"})
+    .formatToParts(new Date());
+  const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));
+  return { now:(Number(p.hour)%24)*60+Number(p.minute), day:p.weekday };
+}
+let { now:NOW, day:DAY } = campusClock();
 const USER = { label: "DMP 110", lat: 49.26135, lng: -123.24820 };
 
 const H = h => h*60;
@@ -278,6 +297,31 @@ const ROOMS = [
     reviews:[{who:"Bio student",r:4,t:"Always seats, but no outlets anywhere.",d:"2 weeks ago"},
              {who:"Anonymous",r:3,t:"Busy foot traffic.",d:"1 month ago"}] },
 ];
+
+/* Photos: images/<room id>.jpg. Real photos of the building or space (not always the exact room)
+   from Wikimedia Commons and Flickr, under the licenses below. The credit shows under the photo.
+   To swap one, replace the jpg and update its line here. */
+const PHOTOS = {
+  iccs246:      { by:"wasme", license:"CC BY-NC-SA 2.0", src:"https://www.flickr.com/photos/21046229@N00/3196138070" },
+  iccsx237:     { by:"wasme", license:"CC BY-NC-SA 2.0", src:"https://www.flickr.com/photos/21046229@N00/4533799067" },
+  iccsAtrium:   { by:"Paul Joseph", license:"CC BY 2.0", src:"https://commons.wikimedia.org/wiki/File:ICICS_CS_UBC.jpg" },
+  ikb185:       { by:"US Embassy Canada", license:"Public domain", src:"https://www.flickr.com/photos/38144472@N04/3574227184" },
+  ikb191:       { by:"Daderot", license:"CC0", src:"https://commons.wikimedia.org/wiki/File:Irving_K._Barber_Learning_Centre_-_University_of_British_Columbia_Vancouver_-_DSC09307.jpg" },
+  ikb3:         { by:"UBC Library", license:"CC BY-NC-ND 2.0", src:"https://www.flickr.com/photos/12146665@N00/2888455532" },
+  koerner216:   { by:"Gaijin Ninja", license:"CC0", src:"https://commons.wikimedia.org/wiki/File:RefurbishedLoerner.JPG" },
+  koerner1:     { by:"James JA Kruk", license:"CC0", src:"https://commons.wikimedia.org/wiki/File:KoernerFloor1Study.JPG" },
+  woodwardB:    { by:"UBC Student Services", license:"CC BY 2.0", src:"https://www.flickr.com/photos/52007212@N07/5394749531" },
+  woodwardOpen: { by:"UBC Student Services", license:"CC BY 2.0", src:"https://www.flickr.com/photos/52007212@N07/5395346064" },
+  buchB215:     { by:"Flahool", license:"CC BY-SA 3.0", src:"https://commons.wikimedia.org/wiki/File:Buchanan_B.jpg" },
+  nest3511:     { by:"Dllu", license:"CC BY-SA 4.0", src:"https://commons.wikimedia.org/wiki/File:Interior_of_the_UBC_Student_Union_Building_08.jpg" },
+  nestAtrium:   { by:"Dllu", license:"CC BY-SA 4.0", src:"https://commons.wikimedia.org/wiki/File:Interior_of_the_UBC_Student_Union_Building_10.jpg" },
+  orch3018:     { by:"Dllu", license:"CC BY-SA 4.0", src:"https://commons.wikimedia.org/wiki/File:Orchard_Commons_at_the_University_of_British_Columbia_2016.jpg" },
+  lifeLounge:   { by:"DennisTsang", license:"CC BY-NC-SA 2.0", src:"https://www.flickr.com/photos/75707194@N00/27751932975" },
+  ladha:        { by:"Leoboudv", license:"CC BY-SA 3.0", src:"https://commons.wikimedia.org/wiki/File:Abdul_Ladha_centre_(UBC).JPG" },
+  forestry:     { by:"Jeff Hitchcock", license:"CC BY 3.0", src:"https://commons.wikimedia.org/wiki/File:Forest_Sciences_Centre_(UBC)_-_panoramio_(1).jpg" },
+  lscAtrium:    { by:"Arbron", license:"CC BY 2.0", src:"https://www.flickr.com/photos/91281489@N00/16376789390" },
+};
+ROOMS.forEach(r => { if (PHOTOS[r.id]) Object.assign(r, { photo:`images/${r.id}.jpg`, credit:PHOTOS[r.id] }); });
 
 /* ============ App state ============ */
 const DEFAULT_F = { q:"", type:"all", now:false, outlets:false, noise:"any", seating:"any", group:1, walk:0, sort:"distance" };
@@ -369,13 +413,14 @@ function renderTabs(){
   const tabs=[["find","Find"],["saved","Saved"],["bookings","Bookings"]];
   document.getElementById("tabs").innerHTML = tabs.map(([k,l])=>
     `<button class="tab" data-tab="${k}" aria-current="${state.tab===k}">${l}${k==="bookings"&&n?`<span class="count">${n}</span>`:""}</button>`).join("");
-  document.getElementById("context").textContent = `You're at ${USER.label} · ${DAY} ${fmt(NOW)} (demo time)`;
+  document.getElementById("context").textContent = `You're at ${USER.label} · ${DAY} ${fmt(NOW)}${PINNED?" (pinned)":""}`;
 }
 
 function itemHTML(r){
   const s=status(r), saved=state.saved.has(r.id);
   return `<div class="item" data-item="${r.id}">
-    <button class="item-main" data-open="${r.id}">
+    <button class="item-main ${r.photo?"has-thumb":""}" data-open="${r.id}">
+      ${r.photo?`<img class="thumb" src="${esc(r.photo)}" alt="" loading="lazy">`:""}
       <span class="name">${esc(r.name)}</span>
       <span class="meta">${esc(r.building)} · ${walk(r)} min walk</span>
       <span class="st ${s.key}">${esc(s.text)}</span>
@@ -485,7 +530,8 @@ function renderDetail(){
   const canReserve = r.bookable && startOptions(r).length>0;
   panel.innerHTML = `<div class="pad">
     <button class="back" data-back>← Back</button>
-    ${r.photo?`<img class="photo" src="${esc(r.photo)}" alt="${esc(r.name)}">`:""}
+    ${r.photo?`<figure class="photofig"><img class="photo" src="${esc(r.photo)}" alt="${esc(r.name)}">
+      ${r.credit?`<figcaption class="credit">Photo: <a href="${esc(r.credit.src)}" target="_blank" rel="noopener">${esc(r.credit.by)}</a> · ${esc(r.credit.license)}</figcaption>`:""}</figure>`:""}
     <h1>${esc(r.name)}</h1>
     <div class="meta">${esc(r.building)} · ${walk(r)} min walk from ${USER.label}</div>
     <div class="statuscard ${s.key}">
@@ -741,8 +787,26 @@ document.addEventListener("change", e=>{
   }
 });
 
+// Keep statuses in step with the clock. Re-render in place so search text and scroll survive;
+// the reserve form is left alone so an open dropdown doesn't close under the user.
+function tick(){
+  const c=campusClock();
+  if (c.now===NOW && c.day===DAY) return;
+  NOW=c.now; DAY=c.day;
+  renderTabs();
+  if (state.screen==="reserve") return;
+  if (state.screen==="list" && state.tab==="find"){ renderResults(); return; }
+  const top=panel.scrollTop;
+  if (state.screen==="detail") renderDetail();
+  else if (state.screen==="confirm") renderConfirm();
+  else if (state.tab==="saved") renderSaved();
+  else renderBookings();
+  panel.scrollTop=top;
+}
+
 initMap();
 render();
+if (!PINNED) setInterval(tick, 15000);
 </script>
 </body>
 </html>
